@@ -5,13 +5,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import AppShell from "@/components/AppShell";
 import Timeline from "@/components/Timeline";
 import PatientHeader from "@/components/PatientHeader";
+import DocumentList from "@/components/DocumentList";
+
+const OFFLINE_KEY = "aarogyapulse.pendingRx";
 
 export default function DoctorPage() {
   return (
     <AppShell
       role="doctor"
       title="Cabin"
-      subtitle="Everyone checked in to your department appears here, with their history already loaded."
+      subtitle="Everyone checked in to your department appears here. Ask the patient for access and their history opens before they sit down."
     >
       {(user) => <Cabin user={user} />}
     </AppShell>
@@ -20,9 +23,12 @@ export default function DoctorPage() {
 
 function Cabin({ user }) {
   const [queue, setQueue] = useState([]);
-  const [active, setActive] = useState(null); // queue entry
+  const [active, setActive] = useState(null);
+  const [consent, setConsent] = useState(null);
   const [patient, setPatient] = useState(null);
   const [records, setRecords] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [pendingRx, setPendingRx] = useState(0);
 
   const loadQueue = useCallback(async () => {
     const res = await fetch(
@@ -34,24 +40,113 @@ function Cabin({ user }) {
 
   useEffect(() => {
     loadQueue();
-    // Poll so a check-in made at the records counter appears without a refresh.
     const t = setInterval(loadQueue, 4000);
     return () => clearInterval(t);
   }, [loadQueue]);
 
-  async function openPatient(entry) {
-    const res = await fetch(`/api/patients/${encodeURIComponent(entry.abhaId)}`);
-    const data = await res.json();
-    setActive(entry);
-    setPatient(data.patient);
-    setRecords(data.records);
-  }
+  // Anything written while the network was down is retried here.
+  const flushOffline = useCallback(async () => {
+    const raw = window.localStorage.getItem(OFFLINE_KEY);
+    const items = raw ? JSON.parse(raw) : [];
+    if (!items.length) {
+      setPendingRx(0);
+      return;
+    }
 
-  async function afterSave() {
+    const left = [];
+    for (const item of items) {
+      try {
+        const res = await fetch("/api/prescriptions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item),
+        });
+        if (!res.ok) left.push(item);
+      } catch {
+        left.push(item);
+      }
+    }
+    window.localStorage.setItem(OFFLINE_KEY, JSON.stringify(left));
+    setPendingRx(left.length);
+    loadQueue();
+  }, [loadQueue]);
+
+  useEffect(() => {
+    flushOffline();
+    window.addEventListener("online", flushOffline);
+    const t = setInterval(flushOffline, 20000);
+    return () => {
+      window.removeEventListener("online", flushOffline);
+      clearInterval(t);
+    };
+  }, [flushOffline]);
+
+  // Ask the patient for access, then poll until they answer.
+  const requestAccess = useCallback(
+    async (entry) => {
+      setActive(entry);
+      setPatient(null);
+      setRecords([]);
+
+      const res = await fetch("/api/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          abhaId: entry.abhaId,
+          doctorId: user.id,
+          doctorName: user.name,
+          department: user.department,
+          scope: `${user.department} history and current medicines`,
+          reason: entry.complaint,
+        }),
+      });
+      const data = await res.json();
+      setConsent(data.consent);
+    },
+    [user]
+  );
+
+  const openRecord = useCallback(
+    async (abhaId) => {
+      const res = await fetch(
+        `/api/patients/${encodeURIComponent(abhaId)}?doctorId=${user.id}&actor=${encodeURIComponent(user.name)}`
+      );
+      if (!res.ok) return false;
+      const data = await res.json();
+      setPatient(data.patient);
+      setRecords(data.records);
+      setDocuments(data.documents || []);
+      return true;
+    },
+    [user]
+  );
+
+  // While a request is pending, check every couple of seconds for the answer.
+  useEffect(() => {
+    if (!consent || consent.live || patient) return;
+    const t = setInterval(async () => {
+      const res = await fetch(`/api/consent?doctorId=${user.id}`);
+      const data = await res.json();
+      const mine = data.consents.find((c) => c.id === consent.id);
+      if (!mine) return;
+      setConsent(mine);
+      if (mine.live) openRecord(mine.abhaId);
+    }, 2000);
+    return () => clearInterval(t);
+  }, [consent, patient, user.id, openRecord]);
+
+  useEffect(() => {
+    if (consent?.live && !patient) openRecord(consent.abhaId);
+  }, [consent, patient, openRecord]);
+
+  function finish() {
     setActive(null);
+    setConsent(null);
     setPatient(null);
     setRecords([]);
+    setDocuments([]);
     loadQueue();
+    flushOffline();
   }
 
   return (
@@ -63,6 +158,13 @@ function Cabin({ user }) {
           </h2>
           <span className="chip bg-gov-50 text-gov-700">{queue.length}</span>
         </div>
+
+        {pendingRx > 0 && (
+          <p className="mt-3 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-900">
+            {pendingRx} prescription{pendingRx > 1 ? "s" : ""} saved on this device,
+            waiting to sync.
+          </p>
+        )}
 
         {queue.length === 0 && (
           <p className="text-sm text-slate-600 mt-3">
@@ -80,7 +182,7 @@ function Cabin({ user }) {
                 exit={{ opacity: 0, x: 8 }}
               >
                 <button
-                  onClick={() => openPatient(q)}
+                  onClick={() => requestAccess(q)}
                   className={`w-full text-left rounded-lg border px-3 py-2.5 transition ${
                     active?.id === q.id
                       ? "border-gov-500 bg-gov-50"
@@ -97,22 +199,37 @@ function Cabin({ user }) {
       </aside>
 
       <div>
-        {!patient ? (
+        {!active && (
           <div className="card p-10 text-center">
             <p className="font-semibold">Pick a patient from the list</p>
             <p className="text-sm text-slate-600 mt-1">
-              Their history opens before they sit down.
+              You will ask them for access, and their history opens the moment
+              they say yes.
             </p>
           </div>
-        ) : (
+        )}
+
+        {active && !patient && (
+          <ConsentWait consent={consent} entry={active} onCancel={finish} />
+        )}
+
+        {patient && (
           <motion.div
             key={patient.abhaId}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
+            <ConsentBadge consent={consent} />
             <PatientHeader patient={patient} records={records} />
             <Summary records={records} department={user.department} />
+
+            {documents.length > 0 && (
+              <div className="card p-5">
+                <h3 className="font-bold tracking-tight mb-3">Uploaded documents</h3>
+                <DocumentList documents={documents} />
+              </div>
+            )}
 
             <div>
               <h3 className="font-bold tracking-tight mb-3">Full history</h3>
@@ -123,11 +240,59 @@ function Cabin({ user }) {
               user={user}
               patient={patient}
               queueId={active?.id}
-              onSaved={afterSave}
+              onSaved={finish}
+              onQueuedOffline={(n) => setPendingRx(n)}
             />
           </motion.div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ConsentWait({ consent, entry, onCancel }) {
+  const denied = consent && (consent.status === "denied" || consent.status === "revoked");
+
+  return (
+    <div className="card p-10 text-center">
+      {denied ? (
+        <>
+          <p className="font-semibold">{entry.name} refused access</p>
+          <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
+            Consult without the history, or ask them again in person. Nothing on
+            their record has been opened.
+          </p>
+        </>
+      ) : (
+        <>
+          <motion.div
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 1.4, repeat: Infinity }}
+            className="h-2.5 w-2.5 rounded-full bg-gov-500 mx-auto"
+          />
+          <p className="font-semibold mt-4">Waiting for {entry.name} to allow access</p>
+          <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
+            The request is on their phone. Once they tap allow, the history opens
+            here for one hour.
+          </p>
+        </>
+      )}
+      <button onClick={onCancel} className="btn-ghost mt-6">
+        Back to the list
+      </button>
+    </div>
+  );
+}
+
+function ConsentBadge({ consent }) {
+  if (!consent?.expiresAt) return null;
+  const mins = Math.max(
+    0,
+    Math.round((new Date(consent.expiresAt) - new Date()) / 60000)
+  );
+  return (
+    <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-2.5 text-sm text-emerald-900">
+      Access granted by the patient · {mins} minutes left · scope: {consent.scope}
     </div>
   );
 }
@@ -164,9 +329,10 @@ function Summary({ records, department }) {
   );
 }
 
-function PrescriptionForm({ user, patient, queueId, onSaved }) {
+function PrescriptionForm({ user, patient, queueId, onSaved, onQueuedOffline }) {
   const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
+  const [vitals, setVitals] = useState({ bp: "", pulse: "", weight: "" });
   const [medicines, setMedicines] = useState([
     { name: "", dose: "", frequency: "1-0-1", duration: "7 days" },
   ]);
@@ -178,7 +344,10 @@ function PrescriptionForm({ user, patient, queueId, onSaved }) {
   }
 
   function addRow() {
-    setMedicines((ms) => [...ms, { name: "", dose: "", frequency: "1-0-1", duration: "7 days" }]);
+    setMedicines((ms) => [
+      ...ms,
+      { name: "", dose: "", frequency: "1-0-1", duration: "7 days" },
+    ]);
   }
 
   async function save() {
@@ -188,22 +357,40 @@ function PrescriptionForm({ user, patient, queueId, onSaved }) {
     }
     setSaving(true);
     setError("");
-    const res = await fetch("/api/prescriptions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        abhaId: patient.abhaId,
-        department: user.department,
-        doctor: user.name,
-        facility: user.facility,
-        diagnosis,
-        medicines,
-        notes,
-        queueId,
-      }),
-    });
-    setSaving(false);
-    if (res.ok) onSaved();
+
+    const payload = {
+      abhaId: patient.abhaId,
+      department: user.department,
+      doctor: user.name,
+      facility: user.facility,
+      diagnosis,
+      medicines,
+      notes,
+      vitals,
+      queueId,
+    };
+
+    try {
+      const res = await fetch("/api/prescriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("server rejected");
+      onSaved();
+    } catch {
+      // Offline-first: keep it on the device and sync when the network returns.
+      const raw = window.localStorage.getItem(OFFLINE_KEY);
+      const items = raw ? JSON.parse(raw) : [];
+      items.push(payload);
+      window.localStorage.setItem(OFFLINE_KEY, JSON.stringify(items));
+      onQueuedOffline?.(items.length);
+      setError(
+        "No connection. The prescription is saved on this device and will sync on its own."
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -220,8 +407,41 @@ function PrescriptionForm({ user, patient, queueId, onSaved }) {
           className="input"
           value={diagnosis}
           onChange={(e) => setDiagnosis(e.target.value)}
-          placeholder="Hypertension — follow-up"
+          placeholder="Hypertension - follow-up"
         />
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <div>
+          <label className="label" htmlFor="bp">Blood pressure</label>
+          <input
+            id="bp"
+            className="input"
+            value={vitals.bp}
+            onChange={(e) => setVitals({ ...vitals, bp: e.target.value })}
+            placeholder="130/84"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="pulse">Pulse</label>
+          <input
+            id="pulse"
+            className="input"
+            value={vitals.pulse}
+            onChange={(e) => setVitals({ ...vitals, pulse: e.target.value })}
+            placeholder="76"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="weight">Weight (kg)</label>
+          <input
+            id="weight"
+            className="input"
+            value={vitals.weight}
+            onChange={(e) => setVitals({ ...vitals, weight: e.target.value })}
+            placeholder="69"
+          />
+        </div>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -276,7 +496,7 @@ function PrescriptionForm({ user, patient, queueId, onSaved }) {
       </div>
 
       {error && (
-        <p className="mt-4 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-sm text-red-700">
+        <p className="mt-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm text-amber-900">
           {error}
         </p>
       )}

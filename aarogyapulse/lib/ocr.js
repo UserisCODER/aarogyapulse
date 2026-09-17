@@ -126,3 +126,32 @@ export function cannedSlip(index = 0) {
 }
 
 export const CANNED_COUNT = CANNED.length;
+
+/**
+ * Real OCR. Runs Tesseract over an uploaded image buffer and returns raw text.
+ *
+ * Tesseract downloads its English language data the first time it runs, so the
+ * machine needs internet on the first scan (after that it is cached in
+ * node_modules/.cache). If anything fails we fall back to a sample slip and
+ * flag it, so a demo never dead-ends on a flaky network.
+ */
+export async function imageToText(buffer) {
+  try {
+    const { createWorker } = await import("tesseract.js");
+    const worker = await createWorker("eng");
+    const { data } = await worker.recognize(buffer);
+    await worker.terminate();
+
+    const text = (data.text || "").trim();
+    if (text.length < 15) {
+      return { text: cannedSlip(0), engine: "fallback", reason: "too-little-text" };
+    }
+    return { text, engine: "tesseract" };
+  } catch (err) {
+    return {
+      text: cannedSlip(0),
+      engine: "fallback",
+      reason: err?.message || "ocr-unavailable",
+    };
+  }
+}

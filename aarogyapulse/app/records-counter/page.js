@@ -151,47 +151,79 @@ function Counter({ user }) {
 
 function ScanPanel({ patient, user, onSaved }) {
   const [rawText, setRawText] = useState("");
-  const [fileName, setFileName] = useState("");
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [draft, setDraft] = useState(null);
+  const [engine, setEngine] = useState(null);
   const [scanning, setScanning] = useState(false);
-  const [sampleIndex, setSampleIndex] = useState(0);
+  const [error, setError] = useState("");
 
   async function runOcr() {
     setScanning(true);
     setDraft(null);
-    const res = await fetch("/api/ocr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rawText, sampleIndex }),
-    });
-    const data = await res.json();
-    // Small delay so the scanning state is visible during a demo.
-    setTimeout(() => {
+    setError("");
+
+    try {
+      let res;
+      if (file) {
+        // Real OCR: the image goes to the server, Tesseract reads it, and the
+        // NLP step turns the text into fields.
+        const form = new FormData();
+        form.append("file", file);
+        res = await fetch("/api/ocr", { method: "POST", body: form });
+      } else {
+        res = await fetch("/api/ocr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rawText }),
+        });
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not read that.");
+        return;
+      }
       setDraft(data.draft);
+      setEngine(data.engine);
+    } catch {
+      setError("The scan failed. Type the slip text instead.");
+    } finally {
       setScanning(false);
-    }, 900);
+    }
   }
 
   async function save() {
+    // The slip image is kept alongside the record, so the original is always
+    // there to check against.
+    if (file) {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("abhaId", patient.abhaId);
+      form.append("label", `Prescription ${draft.date}`);
+      form.append("uploadedBy", user.name);
+      await fetch("/api/documents", { method: "POST", body: form });
+    }
+
     await fetch("/api/records", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ abhaId: patient.abhaId, draft, savedBy: user.name }),
     });
+
     setDraft(null);
     setRawText("");
-    setFileName("");
+    setFile(null);
+    setPreview(null);
     onSaved();
   }
 
   function onFile(e) {
     const f = e.target.files?.[0];
     if (!f) return;
-    setFileName(f.name);
-    // The image is not sent anywhere in the demo — the pipeline runs on a
-    // sample slip instead. Swap this for a real upload when the OCR service
-    // is wired up.
-    setSampleIndex((i) => (i + 1) % 3);
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setDraft(null);
   }
 
   return (
@@ -199,16 +231,30 @@ function ScanPanel({ patient, user, onSaved }) {
       <div className="card p-5">
         <h3 className="font-bold tracking-tight">Old prescription</h3>
         <p className="text-sm text-slate-600 mt-1">
-          Photograph the slip, or type what it says if the handwriting is hard to read.
+          Photograph the slip and the scanner reads it. If the handwriting defeats
+          it, type what the slip says instead.
         </p>
 
-        <label className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 px-4 py-8 cursor-pointer hover:border-gov-500 hover:bg-gov-50/40 transition">
+        <label className="mt-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 px-4 py-6 cursor-pointer hover:border-gov-500 hover:bg-gov-50/40 transition">
           <input type="file" accept="image/*" className="sr-only" onChange={onFile} />
-          <span className="text-sm font-semibold">
-            {fileName || "Choose a photo of the slip"}
-          </span>
-          <span className="text-xs text-slate-500 mt-1">JPG or PNG</span>
+          {preview ? (
+            <img
+              src={preview}
+              alt="The slip you selected"
+              className="max-h-44 rounded-lg object-contain"
+            />
+          ) : (
+            <>
+              <span className="text-sm font-semibold">Choose a photo of the slip</span>
+              <span className="text-xs text-slate-500 mt-1">JPG or PNG</span>
+            </>
+          )}
         </label>
+        {file && (
+          <p className="mt-2 text-xs text-slate-500">
+            {file.name} — press Read the slip to run the scanner.
+          </p>
+        )}
 
         <div className="mt-4">
           <label className="label" htmlFor="raw">Or type the slip text</label>
@@ -225,6 +271,12 @@ function ScanPanel({ patient, user, onSaved }) {
         <button onClick={runOcr} disabled={scanning} className="btn-primary mt-4">
           {scanning ? "Reading the slip…" : "Read the slip"}
         </button>
+
+        {error && (
+          <p className="mt-3 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
       </div>
 
       <div className="card p-5 min-h-[280px]">
@@ -241,6 +293,10 @@ function ScanPanel({ patient, user, onSaved }) {
                 style={{ width: `${90 - i * 12}%` }}
               />
             ))}
+            <p className="text-xs text-slate-500 pt-2">
+              The first scan on a new machine downloads the language data. Give it
+              a few seconds.
+            </p>
           </div>
         )}
 
@@ -252,11 +308,16 @@ function ScanPanel({ patient, user, onSaved }) {
 
         {draft && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
               <span className="chip bg-emerald-50 text-emerald-700">
                 {Math.round(draft.confidence * 100)}% confident
               </span>
               <span className="chip bg-gov-50 text-gov-700">{draft.department}</span>
+              {engine === "fallback" && (
+                <span className="chip bg-amber-50 text-amber-800">
+                  Scanner unavailable — sample shown
+                </span>
+              )}
             </div>
 
             <dl className="space-y-2 text-sm">
@@ -284,6 +345,15 @@ function ScanPanel({ patient, user, onSaved }) {
               <p className="mt-4 text-sm text-slate-600">{draft.notes}</p>
             )}
 
+            <details className="mt-4">
+              <summary className="text-xs text-slate-500 cursor-pointer">
+                Show the raw text the scanner produced
+              </summary>
+              <pre className="mt-2 text-[11px] bg-slate-50 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">
+                {draft.rawText}
+              </pre>
+            </details>
+
             <div className="mt-5 flex gap-3">
               <button onClick={save} className="btn-primary">
                 Save to timeline
@@ -293,7 +363,7 @@ function ScanPanel({ patient, user, onSaved }) {
               </button>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Check the reading against the paper before saving.
+              Nothing is saved until you check the reading against the paper.
             </p>
           </motion.div>
         )}

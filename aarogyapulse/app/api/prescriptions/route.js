@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { updateDb } from "@/lib/db";
+import { updateDb, logAudit } from "@/lib/db";
 
 // POST /api/prescriptions -> doctor writes a new Rx; it lands on the health ID
 export async function POST(request) {
-  const { abhaId, department, doctor, facility, diagnosis, medicines, notes, queueId } =
-    await request.json();
+  const {
+    abhaId, department, doctor, facility, diagnosis, medicines, notes, vitals, queueId,
+  } = await request.json();
 
   if (!abhaId || !diagnosis) {
     return NextResponse.json(
@@ -24,10 +25,18 @@ export async function POST(request) {
       diagnosis,
       medicines: (medicines || []).filter((m) => m.name),
       notes: notes || "",
+      vitals: vitals && vitals.bp ? vitals : null,
       source: "doctor-entry",
       savedAt: new Date().toISOString(),
     };
     db.records.push(rec);
+
+    logAudit(db, {
+      actor: doctor || "Doctor",
+      action: "prescription-written",
+      abhaId,
+      detail: diagnosis,
+    });
 
     if (queueId) {
       const item = db.queue.find((q) => q.id === queueId);

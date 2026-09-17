@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { updateDb } from "@/lib/db";
+import { updateDb, logAudit } from "@/lib/db";
 
 // POST /api/records -> saves a digitised slip onto the patient's timeline
 export async function POST(request) {
@@ -33,6 +33,12 @@ export async function POST(request) {
       savedAt: new Date().toISOString(),
     };
     db.records.push(rec);
+    logAudit(db, {
+      actor: savedBy || "Records counter",
+      action: "slip-digitised",
+      abhaId,
+      detail: draft.diagnosis || "",
+    });
     return rec;
   });
 

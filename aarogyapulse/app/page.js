@@ -29,9 +29,14 @@ export default function Home() {
             </span>
             <span className="font-bold tracking-tight">AarogyaPulse</span>
           </div>
-          <Link href="/login" className="btn-primary !py-2">
-            Staff sign in
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/patient/login" className="btn-ghost !py-2">
+              Patient sign in
+            </Link>
+            <Link href="/login" className="btn-primary !py-2">
+              Staff sign in
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -48,12 +53,12 @@ export default function Home() {
           same Aadhaar and ABHA rails and fixes the part that broke: enrolment.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/login" className="btn-primary">
-            Open the demo
+          <Link href="/patient/login" className="btn-primary">
+            See my health record
           </Link>
-          <a href="#how" className="btn-ghost">
-            See how it works
-          </a>
+          <Link href="/login" className="btn-ghost">
+            Staff sign in
+          </Link>
         </div>
       </section>
 
@@ -85,6 +90,12 @@ export default function Home() {
             </li>
             <li className="rounded-lg bg-slate-50 px-3 py-2">
               <span className="font-mono font-semibold">DOC3002</span> — Doctor, Orthopaedics
+            </li>
+            <li className="rounded-lg bg-slate-50 px-3 py-2">
+              <span className="font-mono font-semibold">ADM9001</span> — Administrator
+            </li>
+            <li className="rounded-lg bg-slate-50 px-3 py-2">
+              <span className="font-mono font-semibold">ramesh@example.com</span> — patient account
             </li>
           </ul>
         </div>

@@ -27,6 +27,8 @@ Delete that file any time to start clean.
 
 Password for all of them: `demo123`
 
+Staff sign-in is at `/login`:
+
 | Staff ID | Role | Department |
 |---|---|---|
 | `ASK1001` | Aadhaar centre staff | — |
@@ -34,68 +36,92 @@ Password for all of them: `demo123`
 | `DOC3001` | Doctor | Cardiology |
 | `DOC3002` | Doctor | Orthopaedics |
 | `DOC3003` | Doctor | General Medicine |
+| `ADM9001` | Administrator | — |
+
+Patient sign-in is at `/patient/login`: `ramesh@example.com` / `demo123`.
+A new patient claims their health ID with the number the Aadhaar centre issued
+(try `14-2233-4455-6677`).
+
+## Google sign-in
+
+Optional. Without it everything still works — the button just hides itself.
+
+1. Go to https://console.cloud.google.com/apis/credentials
+2. Create credentials → OAuth client ID → Web application
+3. Authorised JavaScript origins: `http://localhost:3000`
+4. Copy `.env.example` to `.env.local` and paste the client ID into both
+   `NEXT_PUBLIC_GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_ID`
+5. Restart `npm run dev`
+
+The browser gets a Google token, the server verifies it against Google's
+tokeninfo endpoint, and it is linked to a health ID. The first time, the patient
+types their health ID once so we know which record is theirs.
+
+## OCR
+
+Real, not faked. Upload a photo of a prescription at the records counter and
+Tesseract reads it server-side, then `parseSlip()` in `lib/ocr.js` pulls out the
+date, department, diagnosis and each medicine with its dose and frequency.
+
+The first scan on a new machine downloads the English language data (a few MB),
+so it needs internet once. If OCR fails for any reason the app falls back to a
+sample slip and labels it clearly, so a demo never dead-ends. Typing the slip
+text always works offline.
+
+Nothing the scanner produces is saved until a human presses Save.
 
 ## The demo path (use this on stage)
 
-Open two browser windows side by side — one records counter, one doctor.
+Open three browser windows — records counter, doctor, patient. Use one incognito
+window for the patient so the sessions don't collide.
 
 1. **Aadhaar centre** (`ASK1001`) — create a health ID for a new name.
    Four verification steps run, then the ID appears with an animated tick.
-2. **Records counter** (`REC2001`) — look up `8821` (Sunita Devi) or the ID you
-   just made. Open **Scan a paper slip**, press **Read the slip**, and the
-   extracted diagnosis, medicines and date appear. Save it to the timeline.
+2. **Records counter** (`REC2001`) — look up `5510` (Ramesh Mahto). Open
+   **Scan a paper slip**, upload a photo of any prescription, press **Read the
+   slip**. The extracted diagnosis, medicines and date appear with a confidence
+   score, and the raw OCR text is there to expand. Save it to the timeline.
 3. **Records counter → Send to a doctor** — pick Cardiology, add a complaint, send.
 4. **Doctor's cabin** (`DOC3001`, Cardiology) — the patient appears in the waiting
-   list within a few seconds, with a summary and full timeline already open.
-   Sign in as `DOC3002` (Orthopaedics) instead and the same patient is *not* there.
-   That is the routing rule, demonstrated live.
-5. Write a prescription in the cabin and save. Go back to the records counter,
-   look the patient up again — the new entry is on their timeline.
+   list within a few seconds. Click them: the doctor *asks for access* and the
+   screen waits.
+   Sign in as `DOC3002` (Orthopaedics) instead and the same patient is not in the
+   list at all. That is the routing rule, demonstrated live.
+5. **Patient** (`ramesh@example.com`) — a banner says a doctor is asking. Tap
+   **Allow for 1 hour**. The doctor's screen opens the history by itself.
+6. Write a prescription in the cabin and save. The patient's dashboard shows the
+   new visit, the updated BP chart, and the access in their activity log.
+7. **Patient → Who can see my record** — press **Revoke now**. The doctor loses
+   access immediately; the server rejects the read, not just the UI.
+8. **Admin** (`ADM9001`) — health IDs issued, records digitised, the full access
+   log, consent history and open support tickets.
 
 ## How the folders map to the pitch
 
-```
-app/
-  page.js                    Landing page
-  login/page.js              Multi-role sign-in
-  aadhaar-center/page.js     Touchpoint 1
-  records-counter/page.js    Touchpoint 2 (lookup, OCR, check-in)
-  doctor/page.js             Touchpoint 3 (department queue, Rx)
-  api/
-    auth/login               Checks staff ID + password + role
-    abha/create              Issues a health ID
-    patients/search          Lookup by Aadhaar last 4 / ID / name
-    patients/[abhaId]        Patient + full record timeline
-    ocr                      Slip text -> structured record
-    records                  Saves a digitised slip
-    checkin                  Routes a patient to one department
-    queue                    Department-filtered waiting list
-    prescriptions            Doctor's Rx -> back onto the health ID
-components/
-  AppShell.js                Header, role guard, sign out
-  Timeline.js                Chronological record list
-  PatientHeader.js           Name, ID, allergies, conditions
-  SuccessSeal.js             Animated confirmation tick
-lib/
-  db.js                      JSON file store + seed data
-  auth.js                    Demo accounts and departments
-  ocr.js                     The extraction pipeline
-  session.js                 localStorage session helpers
-data/db.json                 Created on first run
-```
+See `HANDOFF.md` for the full file map and data shapes. Short version:
+
+- `app/aadhaar-center`, `app/records-counter`, `app/doctor` — the three touchpoints
+- `app/patient` — the citizen's own dashboard, documents and consent controls
+- `app/admin` — system stats, access log, consent history, support queue
+- `app/api/*` — every server route
+- `lib/db.js` — the whole data layer, so swapping in Postgres means editing one file
 
 ## What is real and what is simulated
 
 Be straight about this if judges ask — it reads as confidence, not weakness.
 
-**Real:** the role-based routing, the department filter on the queue, the record
-timeline, the write-back of a prescription onto the health ID, and the text
-extraction in `lib/ocr.js` (paste any slip text and it genuinely parses the date,
-department, diagnosis and dosage lines with regex).
+**Real:** role-based routing, the department filter on the queue, consent
+enforced on the server (revoke a consent and the doctor's next read is refused),
+the audit log, document upload and retrieval, password hashing with scrypt,
+Google token verification, the offline prescription queue, and the OCR — Tesseract
+genuinely reads the uploaded image and `parseSlip()` genuinely extracts the fields.
 
-**Simulated:** Aadhaar biometric capture, the ABHA gateway call, and image-to-text.
-Uploading a photo runs the pipeline over a sample slip instead of calling a vision
-model. Swapping in Tesseract or a vision API means changing one function.
+**Simulated:** Aadhaar biometric capture and the ABHA gateway call. Both are
+mocked with clearly labelled demo data.
+
+**Not built yet:** Postgres (the store is a JSON file), real staff session
+security, and handwriting-grade OCR. All three are listed in `HANDOFF.md` with
+the plan for each.
 
 ## Deploying to Vercel
 

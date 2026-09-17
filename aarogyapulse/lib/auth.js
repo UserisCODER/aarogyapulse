@@ -42,6 +42,14 @@ export const USERS = [
     facility: "Tata Main Hospital",
   },
   {
+    id: "u-admin-1",
+    staffId: "ADM9001",
+    password: "demo123",
+    role: "admin",
+    name: "System Admin",
+    facility: "AarogyaPulse control room",
+  },
+  {
     id: "u-doc-gm",
     staffId: "DOC3003",
     password: "demo123",
@@ -67,10 +75,12 @@ export const ROLE_HOME = {
   aadhaar: "/aadhaar-center",
   records: "/records-counter",
   doctor: "/doctor",
+  admin: "/admin",
 };
 
 export const ROLE_LABEL = {
   aadhaar: "Aadhaar centre staff",
   records: "Records counter staff",
   doctor: "Doctor",
+  admin: "Administrator",
 };
