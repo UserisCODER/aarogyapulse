@@ -11,6 +11,9 @@ export default function DoctorCabinPage() {
   ]);
   const [prescriptionMessage, setPrescriptionMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [prescriptionImage, setPrescriptionImage] = useState(null);
+  const [imageMessage, setImageMessage] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
   const healthId = 'ABHA-1234-5678';
 
   useEffect(() => {
@@ -128,6 +131,42 @@ export default function DoctorCabinPage() {
     }
   }
 
+  async function handleImageUpload() {
+    if (!prescriptionImage) {
+      setImageMessage('Please select an image first.');
+      return;
+    }
+
+    setImageUploading(true);
+    setImageMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/patients/${healthId}/documents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ocr_text: `Prescription image uploaded by doctor on ${new Date().toLocaleDateString()}`,
+          file_url: 'https://mock-storage.com/prescription.jpg'
+        })
+      });
+
+      if (res.ok) {
+        setImageMessage('✅ Prescription image uploaded successfully!');
+        setPrescriptionImage(null);
+      } else {
+        setImageMessage('Upload failed.');
+      }
+    } catch (err) {
+      setImageMessage('Network error during upload.');
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-black text-white p-8 pt-28">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -210,13 +249,15 @@ export default function DoctorCabinPage() {
           ))}
         </div>
 
-        {/* Prescription Upload */}
+        {/* Prescription Section */}
         {patient && (
           <div className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-6">
-            <p className="text-xs font-semibold text-teal-400">TODAY'S PRESCRIPTION</p>
-            <p className="text-xs text-gray-400 -mt-4">
-              Saved to {patient?.name}'s Health ID — next doctor sees it automatically.
-            </p>
+            <div>
+              <p className="text-xs font-semibold text-teal-400">TODAY'S PRESCRIPTION</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Saved to {patient?.name}'s Health ID — next doctor sees it automatically.
+              </p>
+            </div>
 
             {/* Consultation Notes */}
             <div>
@@ -294,6 +335,38 @@ export default function DoctorCabinPage() {
             >
               {saving ? 'Saving...' : 'Save Prescription to Health ID'}
             </button>
+
+            {/* Prescription Image Upload */}
+            <div className="border-t border-white/10 pt-6">
+              <p className="text-xs font-semibold text-teal-400 mb-1">
+                UPLOAD PRESCRIPTION PHOTO (OPTIONAL)
+              </p>
+              <p className="text-xs text-gray-400 mb-4">
+                Take a photo of the handwritten prescription as a backup record.
+              </p>
+              <div className="flex gap-4 items-center">
+                <label className="flex-1 flex items-center justify-center rounded-xl border-2 border-dashed border-white/10 px-4 py-6 cursor-pointer hover:border-teal-500 transition">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => setPrescriptionImage(e.target.files?.[0] || null)}
+                  />
+                  <span className="text-xs text-gray-400">
+                    {prescriptionImage ? prescriptionImage.name : 'Choose prescription photo'}
+                  </span>
+                </label>
+                <button
+                  onClick={handleImageUpload}
+                  disabled={imageUploading || !prescriptionImage}
+                  className="bg-white hover:bg-gray-100 disabled:opacity-50 text-black px-6 py-2.5 rounded-xl text-xs font-semibold transition"
+                >
+                  {imageUploading ? 'Uploading...' : 'Upload Photo'}
+                </button>
+              </div>
+              {imageMessage && <p className="text-xs mt-3 text-amber-400">{imageMessage}</p>}
+            </div>
+
           </div>
         )}
 
