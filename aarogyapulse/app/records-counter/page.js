@@ -22,7 +22,7 @@ export default function RecordsCounterPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ "aadhaar number": aadhaar }) // Exact key from doc[cite: 2, 3]
+        body: JSON.stringify({ "aadhaar_number": aadhaar }) // Exact key from doc[cite: 2, 3]
       });
 
       const data = await res.json();
