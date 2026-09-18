@@ -105,5 +105,34 @@
       "source": "paper-ocr"
     }
   ],
-  "queue": []
+  "queue": [],
+  "consents": [],
+  "documents": [],
+  "tickets": [],
+  "audit": [
+    {
+      "id": "a-1789648194174-330",
+      "actor": "Records counter",
+      "action": "record-viewed",
+      "abhaId": "14-2233-4455-6677",
+      "detail": "",
+      "at": "2026-09-17T12:29:54.174Z"
+    },
+    {
+      "id": "a-1789648194561-443",
+      "actor": "Records counter",
+      "action": "record-viewed",
+      "abhaId": "14-2233-4455-6677",
+      "detail": "",
+      "at": "2026-09-17T12:29:54.561Z"
+    },
+    {
+      "id": "a-1789648194666-106",
+      "actor": "Records counter",
+      "action": "record-viewed",
+      "abhaId": "14-2233-4455-6677",
+      "detail": "",
+      "at": "2026-09-17T12:29:54.666Z"
+    }
+  ]
 }

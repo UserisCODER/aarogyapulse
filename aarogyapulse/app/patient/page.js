@@ -60,25 +60,7 @@ export default function PatientDashboard() {
 
   return (
     <div className="min-h-screen">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="mx-auto max-w-5xl px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="h-7 w-7 rounded-md bg-gov-500 grid place-items-center text-white text-sm font-bold">
-              A
-            </span>
-            <span className="font-bold tracking-tight">AarogyaPulse</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block leading-tight">
-              <p className="text-sm font-semibold">{data.patient.name}</p>
-              <p className="text-xs text-slate-500 font-mono">{data.patient.abhaId}</p>
-            </div>
-            <button onClick={signOut} className="btn-ghost !py-2 !px-3">
-              Sign out
-            </button>
-          </div>
-        </div>
-      </header>
+    
 
       <main className="mx-auto max-w-5xl px-5 py-8">
         {pending.length > 0 && (
