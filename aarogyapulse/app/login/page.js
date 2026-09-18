@@ -14,22 +14,37 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (!baseUrl) {
+      setError('API URL is missing in environment variables!');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+      // Endpoint as per doc: POST /api/auth/login
+      const res = await fetch(`${baseUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }) // PDF expects email
+        body: JSON.stringify({ email, password })
       });
+
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Backend returned non-JSON response. Check your Render URL.");
+      }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Login failed');
 
-      // Save token in localStorage for subsequent authorized requests
+      // Save token for protected routes
       localStorage.setItem('token', data.token);
 
-      if (data.user.role === 'admin') router.push('/admin');
-      else if (data.user.role === 'doctor') router.push('/doctor');
-      else if (data.user.role === 'staff' || data.user.role === 'records') router.push('/records-counter');
+      // Route based on role
+      const role = data.user.role;
+      if (role === 'admin') router.push('/admin');
+      else if (role === 'doctor') router.push('/doctor');
+      else if (role === 'staff') router.push('/records-counter');
       else router.push('/patient/page');
     } catch (err) {
       setError(err.message);
@@ -41,8 +56,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">
       <div className="max-w-md w-full p-8 rounded-2xl bg-[#111113] border border-white/10 shadow-2xl">
-        <h2 className="text-2xl font-bold mb-2">Staff & Portal Login</h2>
-        <p className="text-xs text-gray-400 mb-6">Enter your credentials to access the AarogyaPulse grid.</p>
+        <h2 className="text-2xl font-bold mb-2">AarogyaPulse Portal Login</h2>
+        <p className="text-xs text-gray-400 mb-6">Enter official credentials to access the grid.</p>
 
         {error && <div className="mb-4 p-3 rounded-lg bg-red-950/40 border border-red-500/30 text-xs text-red-300">{error}</div>}
 

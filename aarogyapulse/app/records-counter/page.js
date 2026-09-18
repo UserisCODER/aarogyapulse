@@ -12,16 +12,19 @@ export default function RecordsCounterPage() {
     if (!aadhaar) return;
     setLoading(true);
     setMessage('');
+
     try {
       const token = localStorage.getItem('token');
+      // Endpoint as per doc: POST /api/patients/check-aadhaar[cite: 2, 3]
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/patients/check-aadhaar`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ "aadhaar number": aadhaar }) // Matches PDF
+        body: JSON.stringify({ "aadhaar number": aadhaar }) // Exact key from doc[cite: 2, 3]
       });
+
       const data = await res.json();
       if (res.ok && data.found) {
         setPatient(data.patient);
@@ -30,7 +33,7 @@ export default function RecordsCounterPage() {
         setPatient(null);
       }
     } catch (err) {
-      setMessage('Error checking Aadhaar.');
+      setMessage('Error connecting to backend.');
     } finally {
       setLoading(false);
     }
@@ -39,23 +42,23 @@ export default function RecordsCounterPage() {
   const handleDocumentUpload = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const ocrText = formData.get('ocr_text') || 'Scanned prescription slip';
-    const fileUrl = 'https://mock-storage.com/doc.pdf';
+    const ocrText = formData.get('ocr_text');
+    const healthId = patient.health_id || patient.healthId;
 
     try {
       const token = localStorage.getItem('token');
-      // Matches PDF endpoint: POST /api/patients/:healthId/documents[cite: 2]
-      const healthId = patient.health_id || patient.healthId;
+      // Endpoint as per doc: POST /api/patients/:healthId/documents[cite: 2, 3]
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/patients/${healthId}/documents`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ ocr_text: ocrText, file_url: fileUrl })
+        body: JSON.stringify({ ocr_text: ocrText, file_url: 'https://mock-storage.com/doc.pdf' })
       });
+
       if (res.ok) {
-        setMessage('Document uploaded successfully and pending verification!');
+        setMessage('Document uploaded successfully (Pending Verification)!');
       } else {
         setMessage('Document upload failed.');
       }
@@ -69,7 +72,7 @@ export default function RecordsCounterPage() {
       <div className="max-w-4xl mx-auto space-y-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Hospital Records Counter</h1>
-          <p className="text-sm text-gray-400">Check Aadhaar and upload scanned medical documents as per backend specs.</p>
+          <p className="text-sm text-gray-400">Verify Aadhaar and manage patient health documents.</p>
         </div>
 
         <div className="p-6 rounded-2xl bg-[#111113] border border-white/10">
@@ -78,7 +81,7 @@ export default function RecordsCounterPage() {
               type="text" 
               value={aadhaar} 
               onChange={(e) => setAadhaar(e.target.value)} 
-              placeholder="Enter Aadhaar number..." 
+              placeholder="Enter Aadhaar number (e.g. 123456789012)..." 
               className="flex-1 rounded-xl border border-white/10 bg-black px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-teal-500 outline-none"
             />
             <button type="submit" disabled={loading} className="bg-teal-600 hover:bg-teal-500 px-6 py-3 rounded-xl text-sm font-semibold transition">
@@ -95,16 +98,16 @@ export default function RecordsCounterPage() {
                 <h3 className="text-lg font-bold text-white">{patient.name}</h3>
                 <p className="text-xs text-gray-400">Health ID: {patient.health_id || patient.healthId} | Phone: {patient.phone}</p>
               </div>
-              <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-full">Linked & Verified</span>
+              <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-full">Found & Linked</span>
             </div>
 
             <form onSubmit={handleDocumentUpload} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-2">OCR Text / Document Notes</label>
-                <input type="text" name="ocr_text" required placeholder="Enter extracted text or notes..." className="w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-xs text-white outline-none" />
+                <label className="block text-xs font-medium text-gray-300 mb-2">OCR Extracted Text / Notes</label>
+                <input type="text" name="ocr_text" required placeholder="Enter notes or extracted prescription text..." className="w-full rounded-xl border border-white/10 bg-black px-4 py-2.5 text-xs text-white outline-none" />
               </div>
               <button type="submit" className="bg-white hover:bg-gray-100 text-black px-6 py-2.5 rounded-xl text-xs font-semibold transition">
-                Upload Scanned Document to Backend
+                Upload Scanned Document
               </button>
             </form>
           </div>

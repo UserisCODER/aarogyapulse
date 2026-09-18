@@ -52,10 +52,8 @@ export default function HeaderNavbar() {
           <Link href="#contact" className="hover:text-white transition-colors duration-200">Contact</Link>
         </nav>
 
-        {/* Right Actions: Emergency SOS & Animated Stethoscope Graphic */}
+        {/* Right Actions: Emergency SOS & Sign In */}
         <div className="hidden sm:flex items-center gap-3">
-          
-          {/* Pulse Animated Stethoscope Icon */}
           <div className="relative w-9 h-9 flex items-center justify-center rounded-full bg-neutral-900/80 border border-white/10 hover:border-teal-400/50 transition-colors cursor-pointer group" title="ABHA Gateway Connected">
             <svg className="w-5 h-5 text-teal-400 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4.5 4.5v5a7.5 7.5 0 0 0 15 0v-5" />
@@ -66,7 +64,6 @@ export default function HeaderNavbar() {
             </svg>
           </div>
 
-          {/* Quick Emergency Button */}
           <a href="tel:108" className="inline-flex items-center gap-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg shadow-red-600/30 transition-all active:scale-95 border border-red-400/30 group">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
@@ -75,7 +72,6 @@ export default function HeaderNavbar() {
             <span>🚨 Call Ambulance</span>
           </a>
 
-          {/* Portal Login */}
           <Link href="/login" className="bg-[#1F1F22] hover:bg-[#2A2A2D] text-white text-xs font-medium px-4 py-2.5 rounded-full border border-white/10 transition-colors">
             Sign In
           </Link>
