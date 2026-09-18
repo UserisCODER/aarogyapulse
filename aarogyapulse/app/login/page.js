@@ -1,145 +1,82 @@
-"use client";
-
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { saveSession } from "@/lib/session";
-import { ROLE_HOME } from "@/lib/auth";
-
-const ROLES = [
-  { key: "aadhaar", label: "Aadhaar centre", hint: "Creates and links health IDs", demo: "ASK1001" },
-  { key: "records", label: "Records counter", hint: "Digitises paper slips", demo: "REC2001" },
-  { key: "doctor", label: "Doctor", hint: "Sees their department's queue", demo: "DOC3001" },
-];
+'use client';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const [role, setRole] = useState("aadhaar");
-  const [staffId, setStaffId] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  async function handleSignIn() {
-    setBusy(true);
-    setError("");
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ staffId, password, role }),
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }) // PDF expects email
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Sign in failed.");
-        return;
-      }
-      saveSession(data.user);
-      router.push(ROLE_HOME[data.user.role]);
-    } catch {
-      setError("Could not reach the server. Is the dev server running?");
-    } finally {
-      setBusy(false);
-    }
-  }
 
-  function fillDemo() {
-    const r = ROLES.find((x) => x.key === role);
-    setStaffId(r.demo);
-    setPassword("demo123");
-  }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Login failed');
+
+      // Save token in localStorage for subsequent authorized requests
+      localStorage.setItem('token', data.token);
+
+      if (data.user.role === 'admin') router.push('/admin');
+      else if (data.user.role === 'doctor') router.push('/doctor');
+      else if (data.user.role === 'staff' || data.user.role === 'records') router.push('/records-counter');
+      else router.push('/patient/page');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-between bg-gov-600 text-white p-12">
-        <div className="flex items-center gap-2.5">
-          <span className="h-7 w-7 rounded-md bg-white grid place-items-center text-gov-600 text-sm font-bold">
-            A
-          </span>
-          <span className="font-bold tracking-tight">AarogyaPulse</span>
-        </div>
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight leading-tight max-w-md">
-            The last mile of digital health is enrolment — and it&apos;s already paved.
-          </h2>
-          <p className="mt-4 text-gov-100 max-w-md">
-            Three counters, one record. Sign in with the role you are working as.
-          </p>
-        </div>
-        <p className="text-sm text-gov-100">Team Er Hustlers · HackWave 3.0</p>
-      </div>
+    <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">
+      <div className="max-w-md w-full p-8 rounded-2xl bg-[#111113] border border-white/10 shadow-2xl">
+        <h2 className="text-2xl font-bold mb-2">Staff & Portal Login</h2>
+        <p className="text-xs text-gray-400 mb-6">Enter your credentials to access the AarogyaPulse grid.</p>
 
-      <div className="flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          <h1 className="text-2xl font-bold tracking-tight">Staff sign in</h1>
-          <p className="text-slate-600 mt-1.5 text-sm">
-            Choose the counter you are working at today.
-          </p>
+        {error && <div className="mb-4 p-3 rounded-lg bg-red-950/40 border border-red-500/30 text-xs text-red-300">{error}</div>}
 
-          <div className="mt-6 grid gap-2">
-            {ROLES.map((r) => (
-              <button
-                key={r.key}
-                onClick={() => setRole(r.key)}
-                className={`text-left rounded-xl border px-4 py-3 transition ${
-                  role === r.key
-                    ? "border-gov-500 bg-gov-50"
-                    : "border-slate-200 bg-white hover:border-slate-300"
-                }`}
-              >
-                <p className="font-semibold text-sm">{r.label}</p>
-                <p className="text-xs text-slate-600">{r.hint}</p>
-              </button>
-            ))}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1">Email Address</label>
+            <input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              required 
+              className="w-full rounded-lg border border-white/10 bg-black px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-teal-500 outline-none" 
+              placeholder="staff@aarogyapulse.com"
+            />
           </div>
-
-          <div className="mt-6 space-y-4">
-            <div>
-              <label className="label" htmlFor="staffId">Staff ID</label>
-              <input
-                id="staffId"
-                className="input"
-                value={staffId}
-                onChange={(e) => setStaffId(e.target.value)}
-                placeholder="ASK1001"
-              />
-            </div>
-            <div>
-              <label className="label" htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                className="input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSignIn()}
-                placeholder="demo123"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-300 mb-1">Password</label>
+            <input 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              required 
+              className="w-full rounded-lg border border-white/10 bg-black px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-teal-500 outline-none" 
+              placeholder="••••••••"
+            />
           </div>
-
-          <AnimatePresence>
-            {error && (
-              <motion.p
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="mt-4 rounded-lg bg-red-50 border border-red-100 px-3 py-2 text-sm text-red-700"
-              >
-                {error}
-              </motion.p>
-            )}
-          </AnimatePresence>
-
-          <div className="mt-6 flex gap-3">
-            <button onClick={handleSignIn} disabled={busy} className="btn-primary flex-1">
-              {busy ? "Signing in…" : "Sign in"}
-            </button>
-            <button onClick={fillDemo} className="btn-ghost">
-              Use demo account
-            </button>
-          </div>
-        </div>
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-teal-600 hover:bg-teal-500 text-white font-medium py-3 rounded-xl text-sm transition shadow-lg mt-2 disabled:opacity-50"
+          >
+            {loading ? 'Authenticating...' : 'Sign In'}
+          </button>
+        </form>
       </div>
     </div>
   );

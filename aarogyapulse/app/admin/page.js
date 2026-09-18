@@ -30,7 +30,7 @@ function Panel() {
   const [tab, setTab] = useState("overview");
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/overview");
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/login`);
     if (res.ok) setData(await res.json());
   }, []);
 
@@ -41,7 +41,7 @@ function Panel() {
   }, [load]);
 
   async function closeTicket(id) {
-    await fetch("/api/support", {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/support`  , {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, status: "closed" }),
