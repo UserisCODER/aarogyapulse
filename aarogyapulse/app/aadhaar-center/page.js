@@ -23,12 +23,10 @@ export default function AadhaarCenterPage() {
 
     try {
       const u = JSON.parse(userRaw);
-      // Only staff and admin can access this portal
-      if (u.role !== 'staff' && u.role !== 'admin' && u.role !== 'aadhaar')  {
+      if (u.role !== 'staff' && u.role !== 'admin' && u.role !== 'aadhaar') {
         router.replace('/login');
         return;
       }
-      // If they logged in via a different portal, redirect them correctly
       if (u.portal && u.portal !== 'aadhaar' && u.portal !== 'admin') {
         router.replace('/login');
         return;
@@ -68,15 +66,25 @@ export default function AadhaarCenterPage() {
 
     try {
       const token = localStorage.getItem('token');
-      // Search by health_id directly on backend
-      const res = await fetch(`${API}/api/patients/${encodeURIComponent(q)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
+
+      if (/^\d{12}$/.test(q)) {
+        // Search by Aadhaar number
+        const res = await fetch(`${API}/api/patients/search?aadhaar=${encodeURIComponent(q)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const data = await res.json();
-        setResults([data.patient]);
+        setResults(data.patients || []);
       } else {
-        setResults([]);
+        // Search by Health ID
+        const res = await fetch(`${API}/api/patients/${encodeURIComponent(q)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setResults([data.patient]);
+        } else {
+          setResults([]);
+        }
       }
     } catch {
       setResults([]);
@@ -140,7 +148,7 @@ export default function AadhaarCenterPage() {
           dob: form.dob,
           gender: form.gender,
           phone: form.phone.trim() || null,
-          aadhaar_number: form.aadhaar, // full 12-digit sent to backend
+          aadhaar_number: form.aadhaar,
           health_id,
         }),
       });
@@ -216,7 +224,7 @@ export default function AadhaarCenterPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Aadhaar Enrolment</h1>
           <p className="text-sm text-gray-400 mt-1.5">
-            Search for an existing patient by Health ID, or enrol a new patient to create their Health ID.
+            Search for an existing patient by Aadhaar number or Health ID, or enrol a new patient.
           </p>
         </div>
 
@@ -272,7 +280,7 @@ export default function AadhaarCenterPage() {
             <form onSubmit={handleSearch} className="flex gap-3">
               <input
                 type="text"
-                placeholder="Search by Health ID (e.g. ABHA-1234-5678)…"
+                placeholder="Search by Aadhaar number (12 digits) or Health ID…"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 className="flex-1 rounded-xl border border-white/10 bg-[#111113] px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-teal-500 outline-none transition"
@@ -404,4 +412,3 @@ export default function AadhaarCenterPage() {
     </div>
   );
 }
-// redeploy
