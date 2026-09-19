@@ -1,9 +1,35 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 const DEPARTMENTS = ['General Medicine', 'Cardiology', 'Orthopaedics', 'Gynaecology', 'Paediatrics'];
 
 export default function RecordsCounterPage() {
+  const router = useRouter();
+
+  // ── auth guard ────────────────────────────────────────────────────────────
+  const [authChecked, setAuthChecked] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userRaw = localStorage.getItem('user');
+    if (!token || !userRaw) { router.replace('/login'); return; }
+
+    try {
+      const u = JSON.parse(userRaw);
+      if (u.role !== 'staff' && u.role !== 'admin') {
+        router.replace('/login');
+        return;
+      }
+      setUser(u);
+      setAuthChecked(true);
+    } catch {
+      router.replace('/login');
+    }
+  }, [router]);
+
+  // ── page state ────────────────────────────────────────────────────────────
   const [aadhaar, setAadhaar] = useState('');
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,7 +50,7 @@ export default function RecordsCounterPage() {
       const authToken = localStorage.getItem('token');
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/patients/check-aadhaar`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
         },
@@ -90,13 +116,13 @@ export default function RecordsCounterPage() {
       const authToken = localStorage.getItem('token');
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/patients/${healthId}/documents`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({ 
-          ocr_text: ocrText, 
-          file_url: 'https://mock-storage.com/doc.pdf' 
+        body: JSON.stringify({
+          ocr_text: ocrText,
+          file_url: 'https://mock-storage.com/doc.pdf'
         })
       });
 
@@ -111,10 +137,51 @@ export default function RecordsCounterPage() {
     }
   };
 
+  function handleSignOut() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.replace('/login');
+  }
+
+  // ── loading ───────────────────────────────────────────────────────────────
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-gray-500 text-sm">
+        Verifying credentials…
+      </div>
+    );
+  }
+
+  // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-black text-white p-8 pt-28">
-      <div className="max-w-4xl mx-auto space-y-8">
-        
+    <div className="min-h-screen bg-black text-white">
+
+      {/* Header */}
+      <header className="fixed top-0 left-0 w-full z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
+        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-500/30 flex items-center justify-center">
+              <span className="text-base">🏥</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold tracking-tight">AarogyaPulse</p>
+              <p className="text-[10px] text-teal-400 uppercase tracking-wider">Hospital Records Counter</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-gray-400 hidden sm:block">{user?.name}</span>
+            <button
+              onClick={handleSignOut}
+              className="text-xs border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-6 pt-28 pb-16 space-y-8">
+
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Hospital Records Counter</h1>
           <p className="text-sm text-gray-400">Verify Aadhaar, generate queue token, and manage patient documents.</p>
@@ -124,11 +191,11 @@ export default function RecordsCounterPage() {
         <div className="p-6 rounded-2xl bg-[#111113] border border-white/10">
           <p className="text-xs font-semibold text-teal-400 mb-3">STEP 1 — VERIFY AADHAAR</p>
           <form onSubmit={handleSearch} className="flex gap-4">
-            <input 
-              type="text" 
-              value={aadhaar} 
-              onChange={(e) => setAadhaar(e.target.value)} 
-              placeholder="Enter Aadhaar number (e.g. 123456789012)..." 
+            <input
+              type="text"
+              value={aadhaar}
+              onChange={(e) => setAadhaar(e.target.value)}
+              placeholder="Enter Aadhaar number (e.g. 123456789012)..."
               className="flex-1 rounded-xl border border-white/10 bg-black px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-teal-500 outline-none"
             />
             <button type="submit" disabled={loading} className="bg-teal-600 hover:bg-teal-500 px-6 py-3 rounded-xl text-sm font-semibold transition">
