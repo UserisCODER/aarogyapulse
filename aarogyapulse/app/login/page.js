@@ -94,6 +94,17 @@ export default function LoginPage() {
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
+                
+
+        <div className="border-t border-white/5 pt-4 mt-4 text-center">
+          <p className="text-xs text-gray-500">
+            Are you a patient?{' '}
+            <a href="/patient/login" className="text-teal-400 hover:text-teal-300 transition">
+              Sign in as Patient →
+            </a>
+          </p>
+        </div>
+
       </div>
     </div>
   );
