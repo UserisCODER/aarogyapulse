@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import HeaderNavbar from "@/components/HeaderNavbar";
 
 function FadeInUp({ children, delay = 0, className = '' }) {
   const [isVisible, setIsVisible] = useState(false);
@@ -47,6 +48,7 @@ export default function Home() {
 
   return (
     <div className="bg-black text-white min-h-screen font-sans selection:bg-teal-500 selection:text-black">
+        <HeaderNavbar />
       
       {/* 2. Hero Section */}
       <section id="about" className="min-h-screen flex flex-col items-center justify-center pt-32 pb-20 relative z-0 overflow-hidden">
