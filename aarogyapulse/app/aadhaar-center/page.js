@@ -27,10 +27,7 @@ export default function AadhaarCenterPage() {
         router.replace('/login');
         return;
       }
-      if (u.portal && u.portal !== 'aadhaar' && u.portal !== 'admin') {
-        router.replace('/login');
-        return;
-      }
+      
       setUser(u);
       setAuthChecked(true);
     } catch {
