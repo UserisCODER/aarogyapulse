@@ -42,10 +42,11 @@ export default function LoginPage() {
 
       // Route based on role
       const role = data.user.role;
-      if (role === 'admin') router.push('/admin');
-      else if (role === 'doctor') router.push('/doctor');
-      else if (role === 'staff') router.push('/records-counter');
-      else router.push('/patient/page');
+     if (role === 'admin') router.push('/admin');
+     else if (role === 'doctor') router.push('/doctor');
+     else if (role === 'staff') router.push('/records-counter');
+     else if (role === 'aadhaar') router.push('/aadhaar-center');
+     else router.push('/login');
     } catch (err) {
       setError(err.message);
     } finally {
