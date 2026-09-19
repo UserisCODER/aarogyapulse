@@ -24,7 +24,7 @@ export default function AadhaarCenterPage() {
     try {
       const u = JSON.parse(userRaw);
       // Only staff and admin can access this portal
-      if (u.role !== 'staff' && u.role !== 'admin') {
+      if (u.role !== 'staff' && u.role !== 'admin' && u.role !== 'aadhaar')  {
         router.replace('/login');
         return;
       }

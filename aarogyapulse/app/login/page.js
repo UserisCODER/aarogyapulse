@@ -39,6 +39,7 @@ export default function LoginPage() {
 
       // Save token for protected routes
       localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
 
       // Route based on role
       const role = data.user.role;
